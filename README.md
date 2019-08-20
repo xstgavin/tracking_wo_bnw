@@ -20,11 +20,12 @@ In addition to our supplementary document, we provide an illustrative [web-video
     3. Faster R-CNN: `pip3 install -e src/frcnn`
     4. Tracktor: `pip3 install -e .`
     5. PyTorch 0.3.1 for CUDA 9.0: `pip install https://download.pytorch.org/whl/cu90/torch-0.3.1-cp36-cp36m-linux_x86_64.whl`
+    note: before use pip install ensure that you are using the pip of from the correct environment. If you are using conda virtual environment, make use pip is from the corresponding virtual environment bin folder, i.e. (XXX_XXX/anaconda3/envs/VIR_NAME/bin/pip)
 
 3. Compile Faster R-CNN + FPN and Faster R-CNN:
-    1. Make sure the `nvcc` compiler with CUDA 9.0 is working and all CUDA paths are set (in particular `export CPATH=/usr/local/cuda-9.0/include`).
-    2. Compile with: `sh src/fpn/fpn/make.sh`
-    3. Compile with: `sh src/frcnn/frcnn/make.sh`
+    1. Make sure the `nvcc` compiler with CUDA 9.0 is working and all CUDA paths are set (in particular `export CPATH=/usr/local/cuda-9.0/include`). Make sure cuda version is 9.0 for torch=0.31, if higher than 9.0, torch will give error '__cudaPopCallConfiguration'. 
+    2. Compile with: `sh src/fpn/fpn/make.sh`. Compile this with correct cuda, if cuda change you have to re-compile it.
+    3. Compile with: `sh src/frcnn/frcnn/make.sh`. Compile this with correct cuda, if cuda changed, you have to re-compile it. 
     4. If compilation was not successful, check README.md and issues of official Faster-RCNN [repository](https://github.com/jwyang/faster-rcnn.pytorch/) for help.
 
 4. MOTChallenge data:
