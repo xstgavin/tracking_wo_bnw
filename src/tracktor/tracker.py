@@ -20,8 +20,8 @@ class Tracker():
 	cl = 1
 
 	def __init__(self, obj_detect, reid_network, tracker_cfg):
-		self.obj_detect = obj_detect
-		self.reid_network = reid_network
+		self.obj_detect = obj_detect 				# detector model that is being used
+		self.reid_network = reid_network			# reid model that is being used
 		self.detection_person_thresh = tracker_cfg['detection_person_thresh']
 		self.regression_person_thresh = tracker_cfg['regression_person_thresh']
 		self.detection_nms_thresh = tracker_cfg['detection_nms_thresh']
@@ -147,6 +147,8 @@ class Tracker():
 			assigned = []
 			remove_inactive = []
 			for r,c in zip(row_ind, col_ind):
+				# if the found optimal feature dist is less than the threhold, 
+				# remove the corresponding trackor from the inactive_track
 				if dist_mat[r,c] <= self.reid_sim_threshold:
 					t = self.inactive_tracks[r]
 					self.tracks.append(t)
@@ -157,9 +159,10 @@ class Tracker():
 					assigned.append(c)
 					remove_inactive.append(t)
 
+			# perform removal
 			for t in remove_inactive:
 				self.inactive_tracks.remove(t)
-
+			# for those not found in the inactive_tracks, they are returned.
 			keep = torch.Tensor([i for i in range(new_det_pos.size(0)) if i not in assigned]).long().cuda()
 			if keep.nelement() > 0:
 				new_det_pos = new_det_pos[keep]
@@ -192,6 +195,9 @@ class Tracker():
 
 	def align(self, blob):
 		"""Aligns the positions of active and inactive tracks depending on camera motion."""
+		"""Based on camera's current frame and original frame, get warp_matrix and use
+		   the warp_matrix to transform current location of detected box. this gives absolute motion
+		   in the real world coordinate space """
 		if self.im_index > 0:
 			im1 = self.last_image.cpu().numpy()
 			im2 = blob['data'][0][0].cpu().numpy()
@@ -220,16 +226,21 @@ class Tracker():
 				#t.pos = clip_boxes(Variable(pos), blob['im_info'][0][:2]).data
 
 			if self.do_reid:
+				# if reid is used, prepare the positions of objects from the inactive_tracks also
+				# as they will be used to extracting features as well
 				for t in self.inactive_tracks:
 					p = t.pos[0]
 					p1 = torch.Tensor([p[0], p[1], 1]).view(3,1)
 					p2 = torch.Tensor([p[2], p[3], 1]).view(3,1)
+
 					p1_n = torch.mm(warp_matrix, p1).view(1,2)
 					p2_n = torch.mm(warp_matrix, p2).view(1,2)
 					pos = torch.cat((p1_n, p2_n), 1).cuda()
 					t.pos = pos.view(1,-1)
 
 			if self.motion_model:
+				# if motion_model is used, prepare the last frame positions of the objects in tracks also
+				# as they will be used to forcast next location as well
 				for t in self.tracks:
 					if t.last_pos.nelement() > 0:
 						p = t.last_pos[0]
@@ -303,6 +314,7 @@ class Tracker():
 		"""This function should be called every timestep to perform tracking with a blob
 		containing the image information.
 		"""
+		### 1. at each frame copy the location of last frame to last_pos
 		for t in self.tracks:
 			t.last_pos = t.pos.clone()
 
@@ -314,6 +326,7 @@ class Tracker():
 			dets = blob['dets']
 			if len(dets) > 0:
 				dets = torch.cat(dets, 0)[:,:4]
+				# confidence, bbox, rois
 				_, scores, bbox_pred, rois = self.obj_detect.test_rois(dets)
 			else:
 				rois = torch.zeros(0).cuda()
@@ -321,7 +334,9 @@ class Tracker():
 			_, scores, bbox_pred, rois = self.obj_detect.detect()
 
 		if rois.nelement() > 0:
-			boxes = bbox_transform_inv(rois, bbox_pred)
+			# get the bbox in orignial space
+			boxes = bbox_transform_inv(rois, bbox_pred)	
+			# clip the detected bounding box and make sure it lies in the image		
 			boxes = clip_boxes(Variable(boxes), blob['im_info'][0][:2]).data
 
 			# Filter out tracks that have too low person score
@@ -331,10 +346,13 @@ class Tracker():
 			inds = torch.zeros(0).cuda()
 
 		if inds.nelement() > 0:
+			# get all pedestrian with score greater than threshold
+			# get their boxes, detected positions, and scores
 			boxes = boxes[inds]
 			det_pos = boxes[:, self.cl*4:(self.cl+1)*4]
 			det_scores = scores[inds]
 		else:
+			# if non of the detected pedestrian match the threshold, get zeros
 			det_pos = torch.zeros(0).cuda()
 			det_scores = torch.zeros(0).cuda()
 
@@ -349,9 +367,11 @@ class Tracker():
 				self.align(blob)
 			# apply motion model
 			if self.motion_model:
+				# update new locations based on motion model
+				# if not used, regress_tracks will use previous location
 				self.motion()
 			#regress
-			person_scores = self.regress_tracks(blob)
+			person_scores = self.regress_tracks(blob)  # scores of pedestrain based on regression
 
 			if len(self.tracks):
 
@@ -368,8 +388,9 @@ class Tracker():
 
 				if keep.nelement() > 0:
 					nms_inp_reg = torch.cat((self.get_pos(), torch.ones(self.get_pos().size(0)).add_(3).view(-1,1).cuda()),1)
+					# extract features of the self.pos, blob gives image location
 					new_features = self.get_appearances(blob)
-
+					# put feature to the trackors, a trackor can only store certain amount of features	
 					self.add_features(new_features)
 					num_tracks = nms_inp_reg.size(0)
 				else:
@@ -390,10 +411,12 @@ class Tracker():
 		else:
 			nms_inp_det = torch.zeros(0).cuda()
 		if nms_inp_det.nelement() > 0:
-			keep = nms(nms_inp_det, self.detection_nms_thresh)
+			keep = nms(nms_inp_det, self.detection_nms_thresh) # keep those satisfty detection_nms_thrs
 			nms_inp_det = nms_inp_det[keep]
 			# check with every track in a single run (problem if tracks delete each other)
+			# remove detected bb based on tracking result, the left behind is the new detected bb
 			for i in range(num_tracks):
+				## concat current track pos, with filtered detection pos and do nms
 				nms_inp = torch.cat((nms_inp_reg[i].view(1,-1), nms_inp_det), 0)
 				keep = nms(nms_inp, self.detection_nms_thresh)
 				keep = keep[torch.ge(keep,1)]
@@ -406,7 +429,7 @@ class Tracker():
 			new_det_pos = nms_inp_det[:,:4]
 			new_det_scores = nms_inp_det[:,4]
 
-			# try to redientify tracks
+			# try to reidentify tracks
 			new_det_pos, new_det_scores, new_det_features = self.reid(blob, new_det_pos, new_det_scores)
 
 			# add new
