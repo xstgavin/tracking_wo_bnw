@@ -86,7 +86,7 @@ class HomeBrain_Sequence(Dataset):
         im_dir = osp.join(seq_path, 'img1')
         gt_file = osp.join(seq_path, 'gt', 'gt.txt')
         print(gt_file)
-        det_file = osp.join(seq_path, 'det', 'det.txt')
+        det_file = osp.join(seq_path, 'gt', 'det.txt')
 
         total = []
 

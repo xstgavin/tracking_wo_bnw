@@ -81,14 +81,15 @@ def convert_jsonlabel_to_txtlabel():
     print(' convert_jsonlabel_to_txtlabel')
     for label_json_name in video_labels:
         print(label_json_name)
-        label_path = homebrain_MOT_root+label_json_name.split('\\')[-1].rstrip('.mp4.trlabel')
-        vid_path = homebrain_MOT_root+label_json_name.split('\\')[-1].rstrip('.mp4.trlabel')+'\\img1\\'
+        label_path = homebrain_MOT_root+label_json_name.split('\\')[-1].split('.mp4.trlabel')[0]
+        vid_path = homebrain_MOT_root+label_json_name.split('\\')[-1].split('.mp4.trlabel')[0]+'\\img1\\'
         frames = len(glob.glob(vid_path+'*.jpg'))
 
         if not os.path.exists(label_path):
             os.mkdir(label_path)
 
         label_path = label_path +'\\gt\\'
+        print(label_path)
         if not os.path.exists(label_path):
             os.mkdir(label_path)
         wid = open(label_path+'gt.txt','w')
@@ -97,6 +98,19 @@ def convert_jsonlabel_to_txtlabel():
         jdat = json.load(fid)
         fid.close()
 
+        wid_det = open(label_path+'det.txt','w')
+        for elm_key in jdat.keys():
+            frame_idx = int(elm_key)
+            #print(frame_idx)
+            for bb_elm in jdat[elm_key]:
+                #print(bb_elm)
+                bx = bb_elm[1]
+                by = bb_elm[2]
+                bw = bb_elm[3]
+                bh = bb_elm[4]
+                crt_line = '%d -1 %d %d %d %d 1\n'%(frame_idx, bx,by,bw,bh)
+                wid_det.write(crt_line)
+        wid_det.close()
         jdat_new_refine=reformat_json(jdat)
 
         key_lens = len(jdat_new_refine.keys())
@@ -111,7 +125,7 @@ def convert_jsonlabel_to_txtlabel():
                 by = bboxes[lx][1] 
                 bw = bboxes[lx][2] 
                 bh = bboxes[lx][3] 
-                line = '%d,%d,%d,%d,%d,%d,1,1,1\n'%(frame_id, pid, bx, by, bw, bh)
+                line = '%d %d %d %d %d %d 1 1 1\n'%(frame_id, pid, bx, by, bw, bh)
                 wid.write(line)
         wid.close()
         # for frameIdx in range(frames):
