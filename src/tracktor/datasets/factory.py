@@ -1,8 +1,8 @@
-
 from .mot_wrapper import MOT17_Wrapper, MOT19CVPR_Wrapper, MOT17LOWFPS_Wrapper
 from .mot_siamese_wrapper import MOT_Siamese_Wrapper
 from .mot15_wrapper import MOT15_Wrapper
 from .marcuhmot import MarCUHMOT
+from .homebrain_wrapper import HomeBrain_Wrapper
 
 
 _sets = {}
@@ -38,6 +38,8 @@ for split in ['smallTrain', 'smallVal', 'train']:
     name = f'marcuhmot_{split}'
     _sets[name] = (lambda *args, split=split: MarCUHMOT(split, *args))
 
+name='homebrain'
+_sets[name] = (lambda *args, split='homebrain': HomeBrain_Wrapper(split, *args))
 
 class Datasets(object):
     """A central class to manage the individual dataset loaders.
