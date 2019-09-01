@@ -111,7 +111,7 @@ def convert_jsonlabel_to_txtlabel():
                 by = bboxes[lx][1] 
                 bw = bboxes[lx][2] 
                 bh = bboxes[lx][3] 
-                line = '%d %d %d %d %d %d 1 1 1\n'%(frame_id, pid, bx, by, bw, bh)
+                line = '%d,%d,%d,%d,%d,%d,1,1,1\n'%(frame_id, pid, bx, by, bw, bh)
                 wid.write(line)
         wid.close()
         # for frameIdx in range(frames):
